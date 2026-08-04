@@ -1,0 +1,21 @@
+[package]
+name = "sedlink-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Core types and algorithms for sediment connectivity and fluvial network analysis"
+keywords.workspace = true
+categories = ["science::geo"]
+readme = "../../README.md"
+
+[dependencies]
+surtgis-core.workspace = true
+thiserror.workspace = true
+ndarray.workspace = true
+ordered-float.workspace = true
+
+[dev-dependencies]
+approx.workspace = true

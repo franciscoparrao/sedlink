@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "sedlink: sediment connectivity index and fluvial network analysis in Rust"
+authors:
+  - family-names: "Parra"
+    given-names: "Francisco"
+version: 0.2.0
+date-released: 2026-08-04
+license: "MIT OR Apache-2.0"
+repository-code: "https://github.com/franciscoparrao/sedlink"
+keywords:
+  - sediment connectivity
+  - index of connectivity
+  - geomorphology
+  - hydrology
+  - GIS
+  - Rust

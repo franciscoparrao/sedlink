@@ -1,0 +1,21 @@
+[package]
+name = "sedlink-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CLI for sediment connectivity index and fluvial network analysis"
+keywords.workspace = true
+categories = ["command-line-utilities"]
+readme = "../../README.md"
+
+[dependencies]
+sedlink-core = { path = "../core", version = "0.2.0" }
+surtgis-core.workspace = true
+clap.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+ndarray.workspace = true
+tiff = { version = "0.10", features = ["deflate"] }

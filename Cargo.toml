@@ -1,0 +1,46 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/cli",
+]
+default-members = ["crates/core", "crates/cli"]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.91"
+authors = ["Francisco Parra"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/franciscoparrao/sedlink"
+description = "Sediment connectivity index and fluvial network analysis in Rust"
+keywords = ["gis", "geospatial", "sediment-connectivity", "hydrology", "borselli"]
+categories = ["science::geo", "command-line-utilities"]
+
+[workspace.dependencies]
+# Core
+thiserror = "2"
+anyhow = "1"
+
+# Geospatial (reuse SurtGIS ecosystem). The `version` is required for
+# `cargo publish` (crates.io strips the path); local builds use the path.
+surtgis-core = { path = "../surtgis/crates/core", version = "1.0" }
+
+# Numerics
+ndarray = "0.16"
+ordered-float = "4"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Testing
+approx = "0.5"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+
+[profile.test.package.sedlink-core]
+opt-level = 2

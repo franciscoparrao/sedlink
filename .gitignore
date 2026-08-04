@@ -1,0 +1,4 @@
+/target
+*.tif
+!crates/core/tests/data/*.txt
+__pycache__/
