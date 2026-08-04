@@ -14,7 +14,7 @@ authors = ["Francisco Parra"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/franciscoparrao/sedlink"
 description = "Sediment connectivity index and fluvial network analysis in Rust"
-keywords = ["gis", "geospatial", "sediment-connectivity", "hydrology", "borselli"]
+keywords = ["gis", "geospatial", "connectivity", "hydrology", "geomorphology"]
 categories = ["science::geo", "command-line-utilities"]
 
 [workspace.dependencies]
