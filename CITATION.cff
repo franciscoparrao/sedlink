@@ -5,6 +5,8 @@ title: "sedlink: sediment connectivity index and fluvial network analysis in Rus
 authors:
   - family-names: "Parra"
     given-names: "Francisco"
+    affiliation: "Departamento de Ingeniería Informática, Universidad de Santiago de Chile, Santiago, Chile"
+    orcid: "https://orcid.org/0000-0000-0000-0000"  # TODO replace with real ORCID
 version: 0.2.0
 date-released: 2026-08-04
 license: "MIT OR Apache-2.0"

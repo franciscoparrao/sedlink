@@ -1,0 +1,30 @@
+{
+  "title": "sedlink: sediment connectivity index and fluvial network analysis in Rust",
+  "description": "Rust engine that computes the Index of Connectivity (Borselli et al. 2008 / Cavalli et al. 2013), fluvial network metrics (Strahler order, stream magnitude, longitudinal profiles), and sediment routing with distance-decay and IC-based sediment delivery ratios, from a DEM over D8 or D-infinity flow networks. Includes a cross-implementation parity harness against an independent NumPy reference.",
+  "creators": [
+    {
+      "name": "Parra Ortiz, Francisco",
+      "affiliation": "Department of Informatics Engineering, Universidad de Santiago de Chile (USACH)"
+    }
+  ],
+  "keywords": [
+    "sediment connectivity",
+    "index of connectivity",
+    "geomorphology",
+    "hydrology",
+    "GIS",
+    "Rust"
+  ],
+  "license": "MIT",
+  "upload_type": "software",
+  "access_right": "open",
+  "language": "eng",
+  "communities": [],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/franciscoparrao/sedlink/tree/v0.2.0",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}
