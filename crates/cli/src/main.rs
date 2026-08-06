@@ -98,6 +98,22 @@ enum Commands {
         #[arg(short, long)]
         output: PathBuf,
     },
+    /// Delineate watersheds from pour points (D8)
+    Watershed {
+        /// Input DEM (GeoTIFF)
+        #[arg(short, long)]
+        dem: PathBuf,
+        /// Output basin-label raster (GeoTIFF; 1-based labels, 0 = none)
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Pour points as "row,col" pairs separated by ';' (e.g. "120,45;300,200")
+        #[arg(short, long)]
+        pour_points: String,
+        /// Snap each pour point to the max-accumulation cell within this
+        /// Chebyshev radius (cells); 0 = no snapping
+        #[arg(long, default_value_t = 0)]
+        snap: usize,
+    },
     /// Route sediment to the channel network (distance-decay SDR)
     Route {
         /// Input DEM (GeoTIFF)
@@ -232,6 +248,46 @@ fn main() -> anyhow::Result<()> {
             let slope = net.slope_raster()?;
             save_raster(&slope, &output)?;
             eprintln!("Slope saved to {}", output.display());
+        }
+        Commands::Watershed {
+            dem,
+            output,
+            pour_points,
+            snap,
+        } => {
+            let dem_raster = load_dem(&dem)?;
+            let net = Network::from_dem(&dem_raster)?;
+
+            let mut points = Vec::new();
+            for part in pour_points.split(';') {
+                let (r, c) = part
+                    .split_once(',')
+                    .ok_or_else(|| anyhow::anyhow!("pour point '{part}' is not 'row,col'"))?;
+                let (r, c): (usize, usize) = (r.trim().parse()?, c.trim().parse()?);
+                if r >= net.rows() || c >= net.cols() {
+                    anyhow::bail!(
+                        "pour point ({r}, {c}) outside the {}x{} grid",
+                        net.rows(),
+                        net.cols()
+                    );
+                }
+                points.push(if snap > 0 {
+                    net.snap_to_stream(r, c, snap)
+                } else {
+                    r * net.cols() + c
+                });
+            }
+
+            let labels = net.watersheds(&points);
+            let data: Vec<f64> = labels.iter().map(|&l| f64::from(l)).collect();
+            let mut out = Raster::from_vec(data, net.rows(), net.cols())?;
+            out.set_transform(*net.transform());
+            save_raster(&out, &output)?;
+            eprintln!(
+                "Watersheds for {} pour point(s) saved to {}",
+                points.len(),
+                output.display()
+            );
         }
         Commands::Route {
             dem,

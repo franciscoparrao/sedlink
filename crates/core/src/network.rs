@@ -489,6 +489,84 @@ impl Network {
         slope
     }
 
+    /// Delineate watersheds for a set of pour points.
+    ///
+    /// Returns a per-cell label: `k + 1` when the cell drains through
+    /// `pour_points[k]` (the **nearest downstream** pour point wins for
+    /// nested basins), `0` when the cell drains elsewhere or is `NoData`.
+    /// A pour point cell belongs to its own basin.
+    ///
+    /// Pour points are flat (row-major) cell indices; use
+    /// [`snap_to_stream`](Self::snap_to_stream) to place them on the
+    /// channel first.
+    #[must_use]
+    pub fn watersheds(&self, pour_points: &[usize]) -> Vec<u32> {
+        const UNRESOLVED: u32 = u32::MAX;
+
+        let n = self.len();
+        let mut label = vec![UNRESOLVED; n];
+
+        for (k, &p) in pour_points.iter().enumerate() {
+            if p < n {
+                label[p] = (k + 1) as u32;
+            }
+        }
+
+        for start in 0..n {
+            if label[start] != UNRESOLVED || self.solid[start] {
+                if self.solid[start] {
+                    label[start] = 0;
+                }
+                continue;
+            }
+            // Walk downstream until a resolved cell or a pit.
+            let mut path = vec![start];
+            let mut cur = start;
+            let resolved = loop {
+                let ds = self.downstream[cur];
+                if ds == usize::MAX {
+                    break 0; // pit/outlet without pour point
+                }
+                if label[ds] != UNRESOLVED {
+                    break label[ds];
+                }
+                path.push(ds);
+                cur = ds;
+            };
+            for idx in path {
+                label[idx] = resolved;
+            }
+        }
+
+        label
+    }
+
+    /// Snap a pour point to the highest flow accumulation cell within a
+    /// Chebyshev `radius`, returning the flat index of the snapped cell.
+    /// Useful to place outlet coordinates (from GPS or maps) onto the
+    /// modelled channel.
+    #[must_use]
+    pub fn snap_to_stream(&self, row: usize, col: usize, radius: usize) -> usize {
+        let mut best = row * self.cols + col;
+        let mut best_acc = f64::MIN;
+        let (r0, c0) = (row as isize, col as isize);
+        let rad = radius as isize;
+        for dr in -rad..=rad {
+            for dc in -rad..=rad {
+                let (r, c) = (r0 + dr, c0 + dc);
+                if r < 0 || c < 0 || r as usize >= self.rows || c as usize >= self.cols {
+                    continue;
+                }
+                let idx = r as usize * self.cols + c as usize;
+                if !self.solid[idx] && self.flow_acc[idx] > best_acc {
+                    best_acc = self.flow_acc[idx];
+                    best = idx;
+                }
+            }
+        }
+        best
+    }
+
     /// Trace the downstream flow path from a cell to the nearest stream
     /// or outlet, returning the list of cell indices along the path
     /// (excluding the starting cell, including the terminal cell).
