@@ -130,11 +130,12 @@ impl Network {
             }
         }
 
-        // Pit-filling via priority-flood (basic variant).
+        // Pit-filling via priority-flood, then flat resolution.
         let filled = Self::priority_fill(&z, &solid, rows, cols);
+        let flats = crate::flats::FlatOffsets::compute(&filled, &solid, rows, cols);
 
-        // D8 flow direction from filled DEM.
-        let flow_dir = Self::compute_flow_dir(&filled, &solid, rows, cols);
+        // D8 flow direction from filled DEM (+ flat drainage).
+        let flow_dir = Self::compute_flow_dir(&filled, &solid, rows, cols, flats.as_ref());
 
         // Flow accumulation.
         let flow_acc = Self::compute_flow_acc(&flow_dir, &solid, rows, cols);
@@ -162,13 +163,14 @@ impl Network {
         })
     }
 
-    /// Priority-flood pit filling (epsilon variant, Barnes et al. 2014).
+    /// Priority-flood pit filling (Barnes et al. 2014).
     ///
     /// Uses a min-heap over true `f32` elevations seeded with all boundary
-    /// cells. Cells at or below the spill elevation of their lowest
-    /// processed neighbour are raised to just above it (`next_up`), so
-    /// filled depressions keep a drainable gradient instead of becoming
-    /// flat sinks.
+    /// cells. Cells below the spill elevation of their lowest processed
+    /// neighbour are raised to exactly that spill elevation; the
+    /// resulting flats are drained afterwards by
+    /// [`FlatOffsets`](crate::flats::FlatOffsets) (two-gradient flat
+    /// resolution, Garbrecht & Martz 1997).
     pub(crate) fn priority_fill(z: &[f32], solid: &[bool], rows: usize, cols: usize) -> Vec<f32> {
         use ordered_float::OrderedFloat;
         use std::cmp::Reverse;
@@ -229,10 +231,9 @@ impl Network {
                     continue;
                 }
                 visited[nidx] = true;
-                // Raise to just above the spill elevation so the filled
-                // surface drains towards the spill point.
-                if filled[nidx] <= spill {
-                    filled[nidx] = spill.next_up();
+                // Don't lower; only raise to the spill elevation.
+                if filled[nidx] < spill {
+                    filled[nidx] = spill;
                 }
                 heap.push(Reverse((OrderedFloat(filled[nidx]), nidx)));
             }
@@ -247,8 +248,15 @@ impl Network {
     /// unit distance (diagonal steps are √2 longer), matching the
     /// standard D8 definition (O'Callaghan & Mark 1984; `TauDEM`).
     /// Cardinal directions are checked first so that gradient ties break
-    /// towards cardinal flow.
-    fn compute_flow_dir(z: &[f32], solid: &[bool], rows: usize, cols: usize) -> Vec<u8> {
+    /// towards cardinal flow. Cells with no lower neighbour consult the
+    /// flat-resolution offsets.
+    fn compute_flow_dir(
+        z: &[f32],
+        solid: &[bool],
+        rows: usize,
+        cols: usize,
+        flats: Option<&crate::flats::FlatOffsets>,
+    ) -> Vec<u8> {
         // Check order: cardinals first (1=E, 3=N, 5=W, 7=S), then diagonals
         // (2=NE, 4=NW, 6=SW, 8=SE), so gradient ties break towards cardinal
         // flow.
@@ -292,6 +300,13 @@ impl Network {
                         best_grad = grad;
                         best_dir = (d8_index + 1) as u8;
                     }
+                }
+
+                if best_dir == 0
+                    && let Some(f) = flats
+                    && let Some(d) = f.direction(idx, z, solid)
+                {
+                    best_dir = d;
                 }
 
                 flow_dir[idx] = best_dir;

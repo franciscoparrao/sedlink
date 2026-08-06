@@ -192,7 +192,8 @@ impl DinfNetwork {
         z_orig: &[f32],
         solid: &[bool],
     ) -> Self {
-        let angles = Self::compute_flow_dir(filled, solid, rows, cols);
+        let flats = crate::flats::FlatOffsets::compute(filled, solid, rows, cols);
+        let angles = Self::compute_flow_dir(filled, solid, rows, cols, flats.as_ref());
         let flow_acc = Self::compute_flow_acc(&angles, solid, rows, cols);
         let downstream = Self::compute_downstream(&angles, solid, rows, cols);
         let slope = Network::compute_slope(z_orig, solid, rows, cols, pw);
@@ -215,7 +216,13 @@ impl DinfNetwork {
     /// Uses the Tarboton (1997) triangular facet decomposition: for each
     /// cell, fits 8 triangular facets to the 3×3 neighbourhood and selects
     /// the steepest downslope facet. The flow angle is continuous.
-    fn compute_flow_dir(z: &[f32], solid: &[bool], rows: usize, cols: usize) -> Vec<f64> {
+    fn compute_flow_dir(
+        z: &[f32],
+        solid: &[bool],
+        rows: usize,
+        cols: usize,
+        flats: Option<&crate::flats::FlatOffsets>,
+    ) -> Vec<f64> {
         let n = rows * cols;
         let cs = 1.0_f64; // We work in cell units; scale doesn't affect direction
         let diag = cs * std::f64::consts::SQRT_2;
@@ -322,6 +329,14 @@ impl DinfNetwork {
                             best_angle = cardinal_angles[idx_n];
                         }
                     }
+                }
+
+                // Flat cells: use the resolved D8 flat direction's angle.
+                if best_angle < 0.0
+                    && let Some(f) = flats
+                    && let Some(d) = f.direction(idx, z, solid)
+                {
+                    best_angle = f64::from(d - 1) * std::f64::consts::FRAC_PI_4;
                 }
 
                 angles[idx] = best_angle;

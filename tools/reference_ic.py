@@ -5,8 +5,10 @@ Implements IC = log10(D_up / D_dn) following Borselli et al. (2008) and
 Cavalli et al. (2013) with NumPy, matching sedlink's documented numeric
 conventions:
 
-- priority-flood-epsilon pit filling (Barnes 2014) in float32, raising
-  to ``nextafter(spill)`` with (elevation, index) min-heap ordering;
+- priority-flood pit filling (Barnes 2014) in float32 to the exact spill
+  elevation, with (elevation, index) min-heap ordering, followed by
+  two-gradient flat resolution (Garbrecht & Martz 1997): BFS distance to
+  flat outlets (primary) and from higher terrain (tie-break);
 - D8 steepest-descent flow directions by drop/distance, cardinals
   checked first (SurtGIS convention 1=E..8=SE, CCW from East);
 - slope from central differences on the original DEM, stored as float32;
@@ -101,14 +103,104 @@ def priority_fill(z, solid):
             if visited[nr, nc] or solid[nr, nc]:
                 continue
             visited[nr, nc] = True
-            if filled[nr, nc] <= spill32:
-                filled[nr, nc] = np.nextafter(
-                    spill32, np.float32(np.inf), dtype=np.float32)
+            if filled[nr, nc] < spill32:
+                filled[nr, nc] = spill32
             heapq.heappush(heap, (float(filled[nr, nc]), nr * COLS + nc))
     return filled
 
 
-def flow_dir(filled, solid):
+UNSET = np.uint32(0xFFFFFFFF)
+
+
+def flat_offsets(z, solid):
+    """Two-gradient flat resolution offsets (order-independent BFS)."""
+    from collections import deque
+
+    def neighbours(r, c):
+        for dr, dc in D8_OFFSETS:
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < ROWS and 0 <= nc < COLS:
+                yield nr, nc
+
+    needs = np.zeros((ROWS, COLS), dtype=bool)
+    for r in range(ROWS):
+        for c in range(COLS):
+            if solid[r, c]:
+                continue
+            lower = any(not solid[nr, nc] and z[nr, nc] < z[r, c]
+                        for nr, nc in neighbours(r, c))
+            if not lower:
+                needs[r, c] = True
+    if not needs.any():
+        return None
+
+    in_flat = needs.copy()
+    stack = [rc for rc in zip(*np.nonzero(needs))]
+    while stack:
+        r, c = stack.pop()
+        for nr, nc in neighbours(r, c):
+            if not solid[nr, nc] and not in_flat[nr, nc] and z[nr, nc] == z[r, c]:
+                in_flat[nr, nc] = True
+                stack.append((nr, nc))
+
+    to_lower = np.full((ROWS, COLS), UNSET, dtype=np.uint32)
+    from_higher = np.full((ROWS, COLS), UNSET, dtype=np.uint32)
+    low_q, high_q = deque(), deque()
+    for r in range(ROWS):
+        for c in range(COLS):
+            if not in_flat[r, c]:
+                continue
+            on_boundary = r in (0, ROWS - 1) or c in (0, COLS - 1)
+            has_lower = any(not solid[nr, nc] and z[nr, nc] < z[r, c]
+                            for nr, nc in neighbours(r, c))
+            has_higher = any(not solid[nr, nc] and z[nr, nc] > z[r, c]
+                             for nr, nc in neighbours(r, c))
+            if has_lower or on_boundary:
+                to_lower[r, c] = 0
+                low_q.append((r, c))
+            if has_higher:
+                from_higher[r, c] = 0
+                high_q.append((r, c))
+
+    for q, field in ((low_q, to_lower), (high_q, from_higher)):
+        while q:
+            r, c = q.popleft()
+            d = field[r, c]
+            for nr, nc in neighbours(r, c):
+                if in_flat[nr, nc] and z[nr, nc] == z[r, c] and field[nr, nc] == UNSET:
+                    field[nr, nc] = d + 1
+                    q.append((nr, nc))
+
+    return to_lower, from_higher
+
+
+def flat_direction(r, c, z, solid, offsets):
+    """Resolved D8 direction for a flat cell, or 0."""
+    if offsets is None:
+        return 0
+    to_lower, from_higher = offsets
+    own = to_lower[r, c]
+    if own == UNSET or own == 0:
+        return 0
+    best = None  # (to_lower, -from_higher, dir)
+    for k in CHECK_ORDER:
+        dr, dc = D8_OFFSETS[k]
+        nr, nc = r + dr, c + dc
+        if not (0 <= nr < ROWS and 0 <= nc < COLS):
+            continue
+        if solid[nr, nc] or z[nr, nc] != z[r, c] or to_lower[nr, nc] == UNSET:
+            continue
+        if to_lower[nr, nc] >= own:
+            continue
+        fh = from_higher[nr, nc]
+        key = (int(to_lower[nr, nc]),
+               -int(0xFFFFFFFE if fh == UNSET else fh))
+        if best is None or key < best[:2]:
+            best = (key[0], key[1], k + 1)
+    return best[2] if best else 0
+
+
+def flow_dir(filled, solid, offsets):
     fdir = np.zeros((ROWS, COLS), dtype=np.uint8)
     for r in range(ROWS):
         for c in range(COLS):
@@ -126,6 +218,8 @@ def flow_dir(filled, solid):
                 grad = (here - float(filled[nr, nc])) / D8_DISTANCE[k]
                 if grad > best_grad:
                     best_grad, best_dir = grad, k + 1
+            if best_dir == 0:
+                best_dir = flat_direction(r, c, filled, solid, offsets)
             fdir[r, c] = best_dir
     return fdir
 
@@ -199,7 +293,8 @@ def compute_ic(z, weight):
     solid = ~np.isfinite(z)
     solid_flat = solid.ravel()
     filled = priority_fill(z, solid)
-    fdir = flow_dir(filled, solid)
+    offsets = flat_offsets(filled, solid)
+    fdir = flow_dir(filled, solid, offsets)
     ds = downstream_of(fdir)
     acc = accumulate(ds, solid_flat, np.ones(ROWS * COLS))
     slope = slope_radians(z, solid)

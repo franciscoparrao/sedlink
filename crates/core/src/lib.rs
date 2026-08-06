@@ -57,6 +57,7 @@
 mod connectivity;
 mod dinf;
 mod error;
+mod flats;
 mod flow;
 mod network;
 mod params;

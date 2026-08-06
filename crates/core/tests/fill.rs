@@ -98,6 +98,49 @@ fn test_filled_depression_drains_to_boundary() {
 }
 
 #[test]
+fn test_natural_flat_drains() {
+    // A natural flat band (rows 1-3 at z=5.0) between a high rim (row 0)
+    // and a lower outlet row (row 4): no filling is involved, yet every
+    // flat cell must drain to the outlet via flat resolution.
+    let mut data = Array2::<f32>::zeros((N, N));
+    for c in 0..N {
+        data[(0, c)] = 9.0;
+        for r in 1..4 {
+            data[(r, c)] = 5.0;
+        }
+        data[(4, c)] = 2.0;
+    }
+    let mut dem = Raster::from_array(data);
+    dem.set_transform(GeoTransform::new(0.0, 0.0, 5.0, -5.0));
+    let net = Network::from_dem(&dem).unwrap();
+
+    // Interior flat cells (rows 1-2, non-boundary cols) must not be pits
+    // and must reach an outlet: the lower row 4, or the grid boundary
+    // (flats touching the map edge legitimately drain off-grid).
+    for r in 1..3 {
+        for c in 1..N - 1 {
+            assert_ne!(
+                net.flow_dir(r, c),
+                0,
+                "flat cell ({r}, {c}) should drain via flat resolution"
+            );
+            let path = net.trace_downstream(r * N + c);
+            let terminal = *path.last().unwrap();
+            assert!(
+                terminal / N == 4 || is_boundary(terminal),
+                "flat cell ({r}, {c}) should reach row 4 or the boundary, ended at {terminal}"
+            );
+        }
+    }
+
+    // The centre column is far from the side edges: it must drain south
+    // to the true outlet, and row 4 centre must accumulate its column.
+    let path = net.trace_downstream(N + 2);
+    assert_eq!(*path.last().unwrap() / N, 4);
+    assert!(net.flow_acc(4, 2) >= 4.0);
+}
+
+#[test]
 fn test_fill_preserves_dry_terrain() {
     // A DEM without depressions must pass through the fill untouched.
     let mut data = Array2::<f32>::zeros((N, N));
