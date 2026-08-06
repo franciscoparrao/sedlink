@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Two-gradient flat resolution (Garbrecht & Martz 1997; Barnes et al.
+  2014): BFS distance to flat outlets (primary) plus distance from
+  higher terrain (tie-break), applied to both D8 and D∞. Natural plains
+  and filled depressions now drain deterministically; flats touching the
+  map edge drain off-grid.
+- Watershed delineation (`Network::watersheds`) from pour points with
+  nested-basin support, plus `Network::snap_to_stream` and a
+  `sedlink watershed` CLI command.
+- `parallel` feature (default): per-cell kernels (D8/D∞ flow directions,
+  slope, D∞ receivers) run on the rayon thread pool with results
+  identical to the sequential build.
+- Design document for the Hydroflux coupling interface
+  (`docs/hydroflux-coupling.md`).
+
+### Changed
+- **Numeric**: priority-flood now fills to the exact spill elevation
+  (previously `next_up` epsilon); flat drainage comes from the flat
+  resolver instead of ulp-sized gradients, giving more natural paths
+  away from high terrain. Flow directions inside flats can differ from
+  v0.2.0. The NumPy reference and parity fixture were updated to match.
+
 ## [0.2.0] - 2026-08-04
 
 ### Added

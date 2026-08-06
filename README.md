@@ -14,8 +14,13 @@ raster I/O and grid types come from `surtgis-core`.
 ## Features
 
 - **Flow networks**: D8 (steepest gradient) and D∞ (Tarboton 1997), both
-  behind a common `FlowNetwork` trait. Priority-flood-epsilon pit filling
-  (Barnes et al. 2014) so filled depressions keep a drainable gradient.
+  behind a common `FlowNetwork` trait. Priority-flood pit filling with
+  two-gradient flat resolution (Garbrecht & Martz 1997; Barnes et al.
+  2014), so filled depressions and natural plains drain deterministically.
+- **Watersheds**: basin delineation from pour points (nested basins
+  supported) with accumulation-snapping of outlet coordinates.
+- **Parallel**: per-cell kernels run on all cores (rayon, default
+  `parallel` feature) with results identical to the sequential build.
 - **Index of Connectivity**: `IC = log10(D_up / D_dn)` with upslope means
   W̄·S̄ over the contributing area and slope gradient tan θ clamped to
   [0.005, 1.0], following Cavalli et al. (2013).
@@ -55,6 +60,10 @@ sedlink order --dem dem.tif --output order.tif --threshold 1000
 # Flow accumulation / slope
 sedlink acc --dem dem.tif --output acc.tif [--flow dinf]
 sedlink slope --dem dem.tif --output slope.tif
+
+# Watersheds from pour points (snapped to the channel within 5 cells)
+sedlink watershed --dem dem.tif --output basins.tif \
+    --pour-points "120,45;300,200" --snap 5
 
 # Sediment routing: distance-decay SDR
 sedlink route --dem dem.tif --output sdr.tif --source rusle.tif \
