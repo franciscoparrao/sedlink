@@ -30,6 +30,9 @@ surtgis-core = { path = "../surtgis/crates/core", version = "1.0" }
 ndarray = "0.16"
 ordered-float = "4"
 
+# Parallelism
+rayon = "1.10"
+
 # CLI
 clap = { version = "4", features = ["derive"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

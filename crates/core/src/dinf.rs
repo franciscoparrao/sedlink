@@ -228,8 +228,8 @@ impl DinfNetwork {
         let diag = cs * std::f64::consts::SQRT_2;
         let mut angles = vec![f64::NAN; n];
 
-        for r in 0..rows {
-            for c in 0..cols {
+        crate::par::for_each_row(&mut angles, cols, |r, out_row| {
+            for (c, out) in out_row.iter_mut().enumerate() {
                 let idx = r * cols + c;
                 if solid[idx] {
                     continue;
@@ -339,9 +339,9 @@ impl DinfNetwork {
                     best_angle = f64::from(d - 1) * std::f64::consts::FRAC_PI_4;
                 }
 
-                angles[idx] = best_angle;
+                *out = best_angle;
             }
-        }
+        });
 
         angles
     }
@@ -492,8 +492,8 @@ impl DinfNetwork {
         let n = rows * cols;
         let mut downstream = vec![[(usize::MAX, 0.0_f64), (usize::MAX, 0.0)]; n];
 
-        for r in 0..rows {
-            for c in 0..cols {
+        crate::par::for_each_row(&mut downstream, cols, |r, out_row| {
+            for (c, out) in out_row.iter_mut().enumerate() {
                 let idx = r * cols + c;
                 if solid[idx] {
                     continue;
@@ -514,12 +514,12 @@ impl DinfNetwork {
                     if nr >= 0 && nc >= 0 && (nr as usize) < rows && (nc as usize) < cols {
                         let nidx = nr as usize * cols + nc as usize;
                         if !solid[nidx] {
-                            downstream[idx][slot] = (nidx, *frac);
+                            out[slot] = (nidx, *frac);
                         }
                     }
                 }
             }
-        }
+        });
 
         downstream
     }

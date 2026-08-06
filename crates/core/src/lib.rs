@@ -60,6 +60,7 @@ mod error;
 mod flats;
 mod flow;
 mod network;
+mod par;
 mod params;
 mod routing;
 

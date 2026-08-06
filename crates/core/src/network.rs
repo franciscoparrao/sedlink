@@ -274,8 +274,8 @@ impl Network {
         let n = rows * cols;
         let mut flow_dir = vec![0u8; n];
 
-        for r in 0..rows {
-            for c in 0..cols {
+        crate::par::for_each_row(&mut flow_dir, cols, |r, out_row| {
+            for (c, out) in out_row.iter_mut().enumerate() {
                 let idx = r * cols + c;
                 if solid[idx] {
                     continue;
@@ -309,9 +309,9 @@ impl Network {
                     best_dir = d;
                 }
 
-                flow_dir[idx] = best_dir;
+                *out = best_dir;
             }
-        }
+        });
 
         flow_dir
     }
@@ -455,11 +455,11 @@ impl Network {
             Some(f64::from(z[i]))
         };
 
-        for r in 0..rows {
-            for c in 0..cols {
+        crate::par::for_each_row(&mut slope, cols, |r, out_row| {
+            for (c, out) in out_row.iter_mut().enumerate() {
                 let idx = r * cols + c;
                 if solid[idx] {
-                    slope[idx] = 0.0;
+                    *out = 0.0;
                     continue;
                 }
                 let here = sample(r as isize, c as isize).unwrap_or(0.0);
@@ -482,9 +482,9 @@ impl Network {
                     (None, None) => 0.0,
                 };
                 let mag = (grad_x * grad_x + grad_y * grad_y).sqrt();
-                slope[idx] = (mag.atan() as f32).clamp(0.0, std::f32::consts::FRAC_PI_2);
+                *out = (mag.atan() as f32).clamp(0.0, std::f32::consts::FRAC_PI_2);
             }
-        }
+        });
 
         slope
     }
