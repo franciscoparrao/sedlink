@@ -61,6 +61,10 @@ sedlink order --dem dem.tif --output order.tif --threshold 1000
 sedlink acc --dem dem.tif --output acc.tif [--flow dinf]
 sedlink slope --dem dem.tif --output slope.tif
 
+# Solver setup for a pour point: inflow cell, reach slope, basin
+sedlink prep --dem dem.tif --pour-point "135,66" --snap 5 \
+    --output setup.json --basin basin.tif
+
 # Watersheds from pour points (snapped to the channel within 5 cells)
 sedlink watershed --dem dem.tif --output basins.tif \
     --pour-points "120,45;300,200" --snap 5

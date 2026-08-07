@@ -1,68 +1,114 @@
-# Acoplamiento sedlink → Hydroflux (diseño, v0.3)
+# Acoplamiento sedlink ↔ Hydroflux
 
-> Estado: **diseño**. Hydroflux (solver de hazards / propagación granular de la
-> familia de motores) aún no existe como crate; este documento fija el contrato
-> que sedlink expone para que el acoplamiento sea directo cuando se cree.
-> Actualizado 2026-08-06.
+> Estado: **v1 implementado** (`sedlink prep`). Verificado contra el DEM real
+> de Huasco de Hydroflux el 2026-08-07.
+> Hydroflux: `~/proyectos/postdoc/hydroflux` (workspace Rust: `autograd`,
+> `solver-1d`, `solver-2d`).
 
-## Rol de cada motor
+## Qué acopla — y qué no
 
-- **sedlink** responde *cuánto sedimento llega al canal y dónde*: IC, SDR,
-  entrega de ladera (`hillslope_delivery`) y flujo acumulado en la red
-  (`channel_flux`), sobre redes D8/D∞ (`FlowNetwork`).
-- **Hydroflux** responderá *qué hace ese sedimento durante un evento*:
-  propagación granular/hiperconcentrada (debris flows, lahares) con física de
-  onda/reología, paso de tiempo explícito.
+**Alcance real, no el que suponíamos.** El roadmap de Hydroflux
+(`outline.md`) coloca **transporte de sedimento en "Años 7+ / 2032+"**. El
+solver de hoy es shallow-water puro: `Conserved2D { h, hu, hv }`,
+`PointSource { row, col, q_mass }` con `q_mass` en **m³/s de agua**. Por lo
+tanto **no** existe (ni corresponde forzar) un acople "routing de sedimento →
+propagación granular": eso es trabajo de 2032.
 
-La frontera natural: sedlink es **pre-evento y estacionario** (suministro,
-susceptibilidad); Hydroflux es **evento y dinámico** (propagación). El
-acoplamiento es one-way en v1 (sedlink → Hydroflux), sin retroalimentación de
-erosión del evento hacia el IC.
-
-## Contrato de datos (lo que sedlink ya provee hoy)
-
-Todas las salidas son rasters `f64` co-registrados con el DEM de entrada
-(misma grilla, `GeoTransform` compartido, NaN = NoData), más la topología:
-
-| Insumo Hydroflux | API sedlink | Semántica |
-|---|---|---|
-| Suministro de sedimento por celda de canal (condición inicial de volumen movilizable) | `SedimentRouting::hillslope_delivery` | masa (unidades de la fuente) que ENTRA al canal en cada celda |
-| Carga acumulada aguas arriba (para hidrogramas de sedimento en el punto de inicio) | `SedimentRouting::channel_flux` | yield total upstream por celda de canal |
-| Susceptibilidad de ladera (dónde inicializar aportes laterales) | `ConnectivityIndex::ic` | IC de Borselli/Cavalli |
-| Red de propagación (grafo por el que corre el flujo) | `Network::{flow_dir_slice, downstream, upstream}` + `FlowNetwork::downstream_step` | D8: 1 receptor; D∞: receptor primario + fracciones |
-| Jerarquía para segmentar tramos | `NetworkAnalysis::strahler_order` | orden por celda |
-| Dominio del evento | `Network::watersheds(&[outlet])` | máscara de la cuenca que drena al punto de inicio |
-| Geometría | `FlowNetwork::{cellsize, transform}` | resolución y georreferencia |
-
-## Interfaz propuesta (lado Hydroflux, cuando exista)
+Lo que sí acopla hoy, y es inmediatamente útil, es la **preparación de
+terreno** que un run de Hydroflux hace a mano. En
+`solver-2d/examples/huasco_2d_event.rs` conviven hoy:
 
 ```rust
-// hydroflux-core
-pub struct SedimentSupply<'a> {
-    /// Masa movilizable por celda (canal), co-registrada con el DEM.
-    pub supply: &'a Array2<f64>,
-    /// Máscara de dominio (cuenca del evento).
-    pub domain: &'a [u32],
-    /// Red de flujo para la fase de transporte en canal.
-    pub network: &'a dyn FlowNetwork,   // re-export de sedlink_core
-}
+const ACC_THRESHOLD: f64 = 1_000_000.0;
+const SLOPE_MEAN: f64 = 0.0074; // from 1D longitudinal-profile extraction
+const INFLOW_ROW: usize = 135;
+const INFLOW_COL: usize = 66;
 ```
 
-Decisiones:
-1. **`FlowNetwork` es el punto de acople**, no `Network` concreto — Hydroflux
-   consume el trait (re-exportado o duplicado mínimo) y funciona con D8 y D∞.
-2. **Sin serialización intermedia** en proceso: ambos crates comparten
-   `surtgis-core::Raster` y `ndarray`, el paso es por referencia. Para acople
-   entre procesos (CLI a CLI), los GeoTIFF que ya emite `sedlink route`
-   (`--flux`, `--delivery`) + `sedlink watershed` son el formato de intercambio.
-3. **Unidades**: sedlink no impone unidades (siguen a la fuente). El contrato
-   exige declararlas en el metadato del GeoTIFF (`units=` tag) — pendiente
-   menor en `save_raster`.
+Constantes derivadas fuera del código, sin trazabilidad ni forma de
+recalcularlas al cambiar de cuenca. `sedlink prep` las produce de forma
+reproducible desde el DEM.
 
-## Qué falta (en orden, cuando Hydroflux parta)
+## Sustrato común (por qué el acople es barato)
 
-1. Crear `hydroflux` con `sedlink-core = { version = "0.3" }` como dep.
-2. Decidir si `FlowNetwork` se re-exporta o si Hydroflux define su propio trait
-   con blanket impl (evita dependencia dura si Hydroflux quiere otras redes).
-3. Caso de validación conjunto: cuenca alpina con IC + evento documentado
-   (candidato natural para el paper ESPL: "del índice estático al evento").
+Ambos motores ya comparten base: `surtgis-core::Raster` para I/O GeoTIFF
+(Hydroflux lo usa en `mesh_from_geotiff` y en sus ejemplos), `ndarray` 0.16,
+edición 2024, convención de grilla row-major con fila 0 al norte. **No hace
+falta capa de conversión**: los GeoTIFF que emite sedlink los lee
+`mesh_from_geotiff` directamente.
+
+## Interfaz v1: `sedlink prep`
+
+```bash
+sedlink prep --dem huasco_subset_dem.tif --pour-point "135,66" \
+    --snap 5 --threshold 1000 \
+    --output setup.json --acc acc.tif --basin basin.tif
+```
+
+Emite JSON plano (sin dependencias) con lo que el run necesita:
+
+| Campo | Reemplaza en el ejemplo | Origen en sedlink |
+|---|---|---|
+| `inflow_row`, `inflow_col` | `INFLOW_ROW`, `INFLOW_COL` | `Network::snap_to_stream` |
+| `mean_channel_slope` | `SLOPE_MEAN` | `NetworkAnalysis::longitudinal_profile` (drop/largo) |
+| `channel_length_m`, `channel_drop_m` | — (contexto del tramo) | idem |
+| `basin_cells`, `basin_area_m2` | — (dominio) | `Network::watersheds` |
+| `stream_cells` | calibra `ACC_THRESHOLD` | máscara `flow_acc ≥ threshold` |
+
+Y opcionalmente los rasters `--acc` (acumulación) y `--basin` (máscara de
+cuenca, 1 = dentro) co-registrados con el DEM.
+
+## Verificación sobre Huasco (2026-08-07)
+
+DEM real de Hydroflux (`huasco_subset_dem.tif`, 67×200, celdas de 30 m),
+pour point en el inflow hardcodeado:
+
+```
+inflow_row 135, inflow_col 66      → coincide con las constantes del ejemplo
+mean_channel_slope 0.01007          → vs SLOPE_MEAN = 0.0074 hardcodeado
+channel_length_m 4518.3, drop 45.5 m
+basin_cells 63, stream_cells 0      → ver caveat
+```
+
+**Dos discrepancias que hay que entender antes de usar los valores:**
+
+1. **Pendiente 0.0101 vs 0.0074 (+36 %).** Mismo orden, no idénticas. La del
+   ejemplo viene de "1D longitudinal-profile extraction", probablemente sobre
+   un tramo distinto (más largo, cuenca completa) o con ajuste por regresión
+   en vez de drop/largo entre extremos. **Sin reconciliar**: antes de
+   sustituir la constante hay que fijar qué tramo y qué estimador se quiere.
+
+2. **`basin_cells` = 63 y `stream_cells` = 0 no significan que el punto esté
+   fuera del canal.** El raster de acumulación de cuenca completa da 8 579 576
+   en (135, 66) — 99,7 % del máximo del dominio: el punto **sí** está sobre el
+   cauce principal. sedlink reporta 63 porque calcula la acumulación **solo
+   dentro del subset**, y el área aportante real de Huasco queda fuera de esa
+   ventana de 67×200.
+
+   **Regla general**: cuando el DEM es una ventana recortada de una cuenca
+   mayor, la acumulación local subestima el área aportante en los puntos de
+   borde. Por eso mismo el ejemplo inyecta un hidrograma medido (DGA Santa
+   Juana 03820003) en vez de derivar Q del terreno. Para obtener acumulación
+   correcta en un punto de borde, correr `sedlink prep` sobre el **DEM
+   completo** de la cuenca y luego recortar.
+
+## Roadmap del acople
+
+- **v1 (hecho)**: preparación de terreno — inflow, pendiente de tramo,
+  dominio, umbral de canal.
+- **v2 (cuando haya caso de uso)**: post-proceso de peligro combinado —
+  cruzar la profundidad simulada (`write_depth_geotiff`) con el IC/SDR de
+  sedlink para mapas de "dónde hay agua **y** conectividad de sedimento
+  alta". No requiere física nueva en el solver; es álgebra de rasters
+  co-registrados. Encaja con la narrativa de peligro acoplado del postdoc.
+- **v3 (2032+, si Hydroflux entra en sedimento)**: suministro de sedimento
+  (`hillslope_delivery`, `channel_flux`) como condición inicial de volumen
+  movilizable, y `FlowNetwork` como grafo de propagación. Recién ahí aplica
+  el diseño de "trait compartido" que se había supuesto.
+
+## Nota de higiene
+
+Este acople **no modifica el repo de Hydroflux**: todo vive en sedlink y el
+intercambio es por archivos (GeoTIFF + JSON). Hydroflux tiene trabajo sin
+commitear (papers, ejemplos de autograd) y su propia convención de crates;
+cualquier crate `coupling/` allá es decisión de ese proyecto.

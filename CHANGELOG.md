@@ -18,7 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `parallel` feature (default): per-cell kernels (D8/D∞ flow directions,
   slope, D∞ receivers) run on the rayon thread pool with results
   identical to the sequential build.
-- Design document for the Hydroflux coupling interface
+- Solver setup extraction (`ChannelSetup` + `sedlink prep`): derives the
+  inflow cell, mean reach slope, basin extent and channel-cell count for
+  a pour point, emitting flat JSON plus optional accumulation and basin
+  rasters. Replaces the terrain constants a 2D hydraulic run otherwise
+  hard-codes; verified against Hydroflux's Huasco DEM
   (`docs/hydroflux-coupling.md`).
 
 ### Changed

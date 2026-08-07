@@ -7,8 +7,8 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use sedlink_core::{
-    ConnectivityIndex, ConnectivityParams, DinfNetwork, FlowNetwork, IcSdrParams, Network,
-    NetworkAnalysis, RoutingParams, SedimentRouting,
+    ChannelSetup, ConnectivityIndex, ConnectivityParams, DinfNetwork, FlowNetwork, IcSdrParams,
+    Network, NetworkAnalysis, RoutingParams, SedimentRouting,
 };
 use surtgis_core::raster::Raster;
 
@@ -97,6 +97,31 @@ enum Commands {
         /// Output slope raster (GeoTIFF)
         #[arg(short, long)]
         output: PathBuf,
+    },
+    /// Derive solver setup (inflow cell, reach slope, basin) for a pour point
+    Prep {
+        /// Input DEM (GeoTIFF)
+        #[arg(short, long)]
+        dem: PathBuf,
+        /// Pour point as "row,col" (e.g. "135,66")
+        #[arg(short, long)]
+        pour_point: String,
+        /// Snap the pour point to the max-accumulation cell within this
+        /// Chebyshev radius (cells); 0 = no snapping
+        #[arg(long, default_value_t = 5)]
+        snap: usize,
+        /// Stream threshold (cell count)
+        #[arg(short, long, default_value_t = 1000.0)]
+        threshold: f64,
+        /// Write the setup as JSON to this path (default: stdout)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Also write the flow accumulation raster here (GeoTIFF)
+        #[arg(long)]
+        acc: Option<PathBuf>,
+        /// Also write the basin mask here (GeoTIFF; 1 = in basin)
+        #[arg(long)]
+        basin: Option<PathBuf>,
     },
     /// Delineate watersheds from pour points (D8)
     Watershed {
@@ -249,6 +274,48 @@ fn main() -> anyhow::Result<()> {
             save_raster(&slope, &output)?;
             eprintln!("Slope saved to {}", output.display());
         }
+        Commands::Prep {
+            dem,
+            pour_point,
+            snap,
+            threshold,
+            output,
+            acc,
+            basin,
+        } => {
+            let dem_raster = load_dem(&dem)?;
+            let net = Network::from_dem(&dem_raster)?;
+            let (r, c) = parse_row_col(&pour_point)?;
+
+            let dem_flat = dem_raster
+                .data()
+                .as_slice()
+                .ok_or_else(|| anyhow::anyhow!("DEM is not contiguous in memory"))?;
+            let setup = ChannelSetup::derive(&net, dem_flat, (r, c), snap, threshold)?;
+
+            let json = setup.to_json();
+            match &output {
+                Some(path) => {
+                    std::fs::write(path, &json)?;
+                    eprintln!("Setup written to {}", path.display());
+                }
+                None => print!("{json}"),
+            }
+
+            if let Some(path) = acc {
+                save_raster(&net.flow_acc_raster()?, &path)?;
+                eprintln!("Flow accumulation saved to {}", path.display());
+            }
+            if let Some(path) = basin {
+                let idx = setup.inflow.0 * net.cols() + setup.inflow.1;
+                let labels = net.watersheds(&[idx]);
+                let data: Vec<f64> = labels.iter().map(|&l| f64::from(l)).collect();
+                let mut out = Raster::from_vec(data, net.rows(), net.cols())?;
+                out.set_transform(*net.transform());
+                save_raster(&out, &path)?;
+                eprintln!("Basin mask saved to {}", path.display());
+            }
+        }
         Commands::Watershed {
             dem,
             output,
@@ -260,10 +327,7 @@ fn main() -> anyhow::Result<()> {
 
             let mut points = Vec::new();
             for part in pour_points.split(';') {
-                let (r, c) = part
-                    .split_once(',')
-                    .ok_or_else(|| anyhow::anyhow!("pour point '{part}' is not 'row,col'"))?;
-                let (r, c): (usize, usize) = (r.trim().parse()?, c.trim().parse()?);
+                let (r, c) = parse_row_col(part)?;
                 if r >= net.rows() || c >= net.cols() {
                     anyhow::bail!(
                         "pour point ({r}, {c}) outside the {}x{} grid",
@@ -421,6 +485,14 @@ fn run_route<F: FlowNetwork>(
         eprintln!("Hillslope delivery saved to {}", p.display());
     }
     Ok(())
+}
+
+/// Parse a `"row,col"` argument.
+fn parse_row_col(s: &str) -> anyhow::Result<(usize, usize)> {
+    let (r, c) = s
+        .split_once(',')
+        .ok_or_else(|| anyhow::anyhow!("'{s}' is not in 'row,col' form"))?;
+    Ok((r.trim().parse()?, c.trim().parse()?))
 }
 
 fn load_dem(path: &PathBuf) -> anyhow::Result<Raster<f32>> {
