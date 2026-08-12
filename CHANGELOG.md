@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-08-12
 
 ### Added
 - Two-gradient flat resolution (Garbrecht & Martz 1997; Barnes et al.
@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`docs/hydroflux-coupling.md`).
 
 ### Changed
+- Dependencies: `surtgis-core` 1.0 → 1.2 (TIFF decoder hardening, NoData
+  fixes) and `tiff` 0.10 → 0.11, keeping both crates on the same TIFF
+  stack.
 - **Numeric**: priority-flood now fills to the exact spill elevation
   (previously `next_up` epsilon); flat drainage comes from the flat
   resolver instead of ulp-sized gradients, giving more natural paths

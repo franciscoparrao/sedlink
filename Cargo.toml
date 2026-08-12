@@ -7,7 +7,7 @@ members = [
 default-members = ["crates/core", "crates/cli"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.91"
 authors = ["Francisco Parra"]
@@ -24,7 +24,7 @@ anyhow = "1"
 
 # Geospatial (reuse SurtGIS ecosystem). The `version` is required for
 # `cargo publish` (crates.io strips the path); local builds use the path.
-surtgis-core = { path = "../surtgis/crates/core", version = "1.0" }
+surtgis-core = { path = "../surtgis/crates/core", version = "1.2" }
 
 # Numerics
 ndarray = "0.16"
