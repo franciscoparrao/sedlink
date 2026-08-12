@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `ChannelSetup` now also reports the least-squares reach slope
+  (`fitted_channel_slope`) alongside the endpoint mean, and accepts a
+  reach-length cap (`max_reach_length` / `sedlink prep --max-reach`).
+  Reproduces Hydroflux's 1D longitudinal-profile extraction on the
+  Huasco full-basin DEM to within 0.5 %.
 - Combined flood–sediment hazard classification (`combined_hazard` +
   `sedlink hazard`): a 3×3 bivariate matrix of simulated flood depth
   (Swiss intensity thresholds 0.5/2.0 m by default) × Index of

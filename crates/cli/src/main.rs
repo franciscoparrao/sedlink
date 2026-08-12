@@ -136,6 +136,10 @@ enum Commands {
         /// Stream threshold (cell count)
         #[arg(short, long, default_value_t = 1000.0)]
         threshold: f64,
+        /// Truncate the profiled reach to this length (m); omit to
+        /// profile down to the outlet
+        #[arg(long)]
+        max_reach: Option<f64>,
         /// Write the setup as JSON to this path (default: stdout)
         #[arg(short, long)]
         output: Option<PathBuf>,
@@ -352,6 +356,7 @@ fn main() -> anyhow::Result<()> {
             pour_point,
             snap,
             threshold,
+            max_reach,
             output,
             acc,
             basin,
@@ -364,7 +369,7 @@ fn main() -> anyhow::Result<()> {
                 .data()
                 .as_slice()
                 .ok_or_else(|| anyhow::anyhow!("DEM is not contiguous in memory"))?;
-            let setup = ChannelSetup::derive(&net, dem_flat, (r, c), snap, threshold)?;
+            let setup = ChannelSetup::derive(&net, dem_flat, (r, c), snap, threshold, max_reach)?;
 
             let json = setup.to_json();
             match &output {

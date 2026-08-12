@@ -72,11 +72,33 @@ basin_cells 63, stream_cells 0      → ver caveat
 
 **Dos discrepancias que hay que entender antes de usar los valores:**
 
-1. **Pendiente 0.0101 vs 0.0074 (+36 %).** Mismo orden, no idénticas. La del
-   ejemplo viene de "1D longitudinal-profile extraction", probablemente sobre
-   un tramo distinto (más largo, cuenca completa) o con ajuste por regresión
-   en vez de drop/largo entre extremos. **Sin reconciliar**: antes de
-   sustituir la constante hay que fijar qué tramo y qué estimador se quiere.
+1. **Pendiente 0.0101 vs 0.0074 — RECONCILIADA (2026-08-12).** El 0.0074 es
+   el `fitted_slope_linear` de
+   `examples/huasco_channel/extract_longitudinal_profile.py`: regresión
+   lineal sobre 50 celdas (1805.5 m) aguas abajo del gauge Santa Juana,
+   snapeado al cauce principal con media-ventana de **150 celdas** (el gauge
+   crudo cae en ladera: acc = 34 celdas, z = 655 m), sobre el DEM de cuenca
+   completa de paper1. La diferencia con el 0.0101 se descompone en:
+   **(a) tramo distinto** — el subset camina otro sector del río, más
+   empinado (factor dominante); **(b) estimador** — regresión vs drop/largo
+   difieren ~10 % en este tramo dominado por un flat con dos escalones
+   (mediana de pendiente por segmento ≈ 3e-6); **(c) snap** — radio 3 vs 150.
+
+   Con los mismos parámetros, sedlink **reproduce la extracción 1D al 0.5 %**:
+
+   ```bash
+   sedlink prep --dem factors/06_rio_huasco/hydrology/filled.tif \
+       --pour-point "995,1941" --snap 150 --max-reach 1805.5
+   # → mean 0.006902 (vs 0.006740), fitted 0.007481 (vs 0.007443),
+   #   drop 12.1690 m (exacto); DEM 5068×4975 en ~18 s
+   ```
+
+   `ChannelSetup` expone ambos estimadores (`mean_channel_slope`,
+   `fitted_channel_slope`) y `--max-reach` acota el tramo, así que la
+   constante deja de ser un número sin procedencia: se regenera con un
+   comando. Cuál usar es decisión de modelación de Hydroflux — el fitted
+   del tramo del gauge (0.0074) o el local del punto de inyección en el
+   subset (~0.010).
 
 2. **`basin_cells` = 63 y `stream_cells` = 0 no significan que el punto esté
    fuera del canal.** El raster de acumulación de cuenca completa da 8 579 576

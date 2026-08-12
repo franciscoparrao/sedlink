@@ -33,7 +33,7 @@ fn test_setup_reach_slope_and_basin() {
 
     // Pour point at the top of column 2, no snapping: the reach runs the
     // full column (4 steps × 5 m = 20 m, dropping 10 - 2 = 8 m).
-    let setup = ChannelSetup::derive(&net, &z, (0, 2), 0, 5.0).unwrap();
+    let setup = ChannelSetup::derive(&net, &z, (0, 2), 0, 5.0, None).unwrap();
 
     assert_eq!(setup.inflow, (0, 2));
     assert_relative_eq!(setup.channel_length, 20.0, epsilon = 1e-10);
@@ -53,7 +53,7 @@ fn test_setup_basin_at_outlet() {
     let z = flat_dem_data(&dem);
 
     // Outlet of column 2: the whole column drains through it.
-    let setup = ChannelSetup::derive(&net, &z, (4, 2), 0, 5.0).unwrap();
+    let setup = ChannelSetup::derive(&net, &z, (4, 2), 0, 5.0, None).unwrap();
 
     assert_eq!(setup.inflow, (4, 2));
     assert_eq!(setup.basin_cells, N);
@@ -74,7 +74,7 @@ fn test_setup_snaps_to_channel() {
 
     // A hillslope pour point with radius 3 snaps onto the bottom row,
     // where accumulation peaks.
-    let setup = ChannelSetup::derive(&net, &z, (1, 1), 3, 5.0).unwrap();
+    let setup = ChannelSetup::derive(&net, &z, (1, 1), 3, 5.0, None).unwrap();
     assert_eq!(setup.inflow.0, 4, "should snap to the outlet row");
     assert_relative_eq!(setup.inflow_accumulation, 5.0, epsilon = 1e-10);
 }
@@ -84,7 +84,7 @@ fn test_setup_json_is_parseable() {
     let dem = simple_slope_dem();
     let net = Network::from_dem(&dem).unwrap();
     let z = flat_dem_data(&dem);
-    let setup = ChannelSetup::derive(&net, &z, (0, 2), 0, 5.0).unwrap();
+    let setup = ChannelSetup::derive(&net, &z, (0, 2), 0, 5.0, None).unwrap();
 
     let json = setup.to_json();
     for key in [
@@ -111,6 +111,42 @@ fn test_setup_json_is_parseable() {
 }
 
 #[test]
+fn test_fitted_slope_equals_mean_on_uniform_reach() {
+    // On a uniform slope the regression and the endpoint mean coincide.
+    let dem = simple_slope_dem();
+    let net = Network::from_dem(&dem).unwrap();
+    let z = flat_dem_data(&dem);
+
+    let setup = ChannelSetup::derive(&net, &z, (0, 2), 0, 5.0, None).unwrap();
+    assert_relative_eq!(setup.fitted_channel_slope, 0.4, epsilon = 1e-6);
+    assert_relative_eq!(
+        setup.fitted_channel_slope,
+        setup.mean_channel_slope,
+        epsilon = 1e-9
+    );
+}
+
+#[test]
+fn test_max_reach_truncates_profile() {
+    let dem = simple_slope_dem();
+    let net = Network::from_dem(&dem).unwrap();
+    let z = flat_dem_data(&dem);
+
+    // Full reach is 20 m; truncating at 12 m keeps points at 0/5/10 m
+    // (2 steps, dropping 4 m).
+    let setup = ChannelSetup::derive(&net, &z, (0, 2), 0, 5.0, Some(12.0)).unwrap();
+    assert_relative_eq!(setup.channel_length, 10.0, epsilon = 1e-10);
+    assert_relative_eq!(setup.channel_drop, 4.0, epsilon = 1e-6);
+    assert_relative_eq!(setup.mean_channel_slope, 0.4, epsilon = 1e-6);
+
+    // Invalid reach length rejected.
+    assert!(matches!(
+        ChannelSetup::derive(&net, &z, (0, 2), 0, 5.0, Some(0.0)),
+        Err(SedlinkError::InvalidParam { .. })
+    ));
+}
+
+#[test]
 fn test_setup_rejects_bad_inputs() {
     let dem = simple_slope_dem();
     let net = Network::from_dem(&dem).unwrap();
@@ -118,17 +154,17 @@ fn test_setup_rejects_bad_inputs() {
 
     // Pour point outside the grid.
     assert!(matches!(
-        ChannelSetup::derive(&net, &z, (99, 0), 0, 5.0),
+        ChannelSetup::derive(&net, &z, (99, 0), 0, 5.0, None),
         Err(SedlinkError::InvalidParam { .. })
     ));
     // Invalid threshold.
     assert!(matches!(
-        ChannelSetup::derive(&net, &z, (0, 2), 0, 0.0),
+        ChannelSetup::derive(&net, &z, (0, 2), 0, 0.0, None),
         Err(SedlinkError::InvalidParam { .. })
     ));
     // DEM slice of the wrong length.
     assert!(matches!(
-        ChannelSetup::derive(&net, &z[..10], (0, 2), 0, 5.0),
+        ChannelSetup::derive(&net, &z[..10], (0, 2), 0, 5.0, None),
         Err(SedlinkError::GridMismatch { .. })
     ));
 }
