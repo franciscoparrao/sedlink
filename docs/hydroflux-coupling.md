@@ -96,11 +96,18 @@ basin_cells 63, stream_cells 0      → ver caveat
 
 - **v1 (hecho)**: preparación de terreno — inflow, pendiente de tramo,
   dominio, umbral de canal.
-- **v2 (cuando haya caso de uso)**: post-proceso de peligro combinado —
-  cruzar la profundidad simulada (`write_depth_geotiff`) con el IC/SDR de
-  sedlink para mapas de "dónde hay agua **y** conectividad de sedimento
-  alta". No requiere física nueva en el solver; es álgebra de rasters
-  co-registrados. Encaja con la narrativa de peligro acoplado del postdoc.
+- **v2 (hecho, 2026-08-12)**: peligro combinado — `sedlink hazard` cruza la
+  profundidad simulada (`write_depth_geotiff`) con el IC en una matriz
+  bivariada 3×3 (clases de profundidad con umbrales suizos 0.5/2.0 m ×
+  clases de IC por percentiles del área inundada o umbrales explícitos).
+  Clase 0 = seco; 1–9 = `(clase_prof − 1)·3 + clase_IC`. Verificado
+  end-to-end con la salida real del evento Huasco 2017 (día 19): 273
+  celdas inundadas, 15 en clase 9 (agua profunda + conectividad alta).
+
+  *Nota de interpretación*: sobre una mancha de inundación la mayoría de
+  las celdas mojadas son cauce (IC = +clamp), así que los percentiles se
+  comprimen hacia arriba; para discriminar fino dentro del canal usar
+  `--ic-breaks` explícitos o clasificar contra el SDR en vez del IC.
 - **v3 (2032+, si Hydroflux entra en sedimento)**: suministro de sedimento
   (`hillslope_delivery`, `channel_flux`) como condición inicial de volumen
   movilizable, y `FlowNetwork` como grafo de propagación. Recién ahí aplica

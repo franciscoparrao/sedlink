@@ -98,6 +98,29 @@ enum Commands {
         #[arg(short, long)]
         output: PathBuf,
     },
+    /// Combined flood-sediment hazard classes from depth + IC rasters
+    Hazard {
+        /// Simulated flood depth raster (GeoTIFF, metres) — e.g. from a
+        /// shallow-water solver such as Hydroflux
+        #[arg(long)]
+        depth: PathBuf,
+        /// Index of Connectivity raster (GeoTIFF) — from `sedlink ic`
+        #[arg(long)]
+        ic: PathBuf,
+        /// Output class raster (GeoTIFF; 0 = dry, 1-9 = depth x IC matrix)
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Minimum depth (m) for a cell to count as wet
+        #[arg(long, default_value_t = 0.05)]
+        wet: f64,
+        /// Depth class breaks "low,high" in metres
+        #[arg(long, default_value = "0.5,2.0")]
+        depth_breaks: String,
+        /// IC class breaks "low,high"; omit to use the 33rd/66th
+        /// percentiles of IC over the wet area
+        #[arg(long)]
+        ic_breaks: Option<String>,
+    },
     /// Derive solver setup (inflow cell, reach slope, basin) for a pour point
     Prep {
         /// Input DEM (GeoTIFF)
@@ -273,6 +296,56 @@ fn main() -> anyhow::Result<()> {
             let slope = net.slope_raster()?;
             save_raster(&slope, &output)?;
             eprintln!("Slope saved to {}", output.display());
+        }
+        Commands::Hazard {
+            depth,
+            ic,
+            output,
+            wet,
+            depth_breaks,
+            ic_breaks,
+        } => {
+            let depth_raster = load_raster_f64(&depth)?;
+            let ic_raster = load_raster_f64(&ic)?;
+
+            if depth_raster.transform() != ic_raster.transform() {
+                anyhow::bail!(
+                    "depth and IC rasters have different geotransforms; \
+                     they must be co-registered"
+                );
+            }
+
+            let parse_breaks = |s: &str| -> anyhow::Result<[f64; 2]> {
+                let (a, b) = s
+                    .split_once(',')
+                    .ok_or_else(|| anyhow::anyhow!("breaks '{s}' are not 'low,high'"))?;
+                Ok([a.trim().parse()?, b.trim().parse()?])
+            };
+            let params = sedlink_core::HazardParams {
+                wet_depth: wet,
+                depth_breaks: parse_breaks(&depth_breaks)?,
+                ic_breaks: ic_breaks.as_deref().map(parse_breaks).transpose()?,
+            };
+
+            let hazard =
+                sedlink_core::combined_hazard(depth_raster.data(), ic_raster.data(), &params)?;
+
+            let mut out = Raster::from_array(hazard.class.mapv(f64::from));
+            out.set_transform(*depth_raster.transform());
+            save_raster(&out, &output)?;
+
+            eprintln!(
+                "IC breaks used: [{:.4}, {:.4}]",
+                hazard.ic_breaks[0], hazard.ic_breaks[1]
+            );
+            let wet_cells: usize = hazard.class_counts[1..].iter().sum();
+            eprintln!(
+                "Classes (dry {} | wet {}): {:?}",
+                hazard.class_counts[0],
+                wet_cells,
+                &hazard.class_counts[1..]
+            );
+            eprintln!("Hazard classes saved to {}", output.display());
         }
         Commands::Prep {
             dem,
