@@ -13,8 +13,9 @@ raster I/O and grid types come from `surtgis-core`.
 
 ## Features
 
-- **Flow networks**: D8 (steepest gradient) and D∞ (Tarboton 1997), both
-  behind a common `FlowNetwork` trait. Priority-flood pit filling with
+- **Flow networks**: D8 (steepest gradient), D∞ (Tarboton 1997) and
+  MFD/FD8 (Freeman 1991 / Holmgren 1994), all behind a common
+  `FlowNetwork` trait. Priority-flood pit filling with
   two-gradient flat resolution (Garbrecht & Martz 1997; Barnes et al.
   2014), so filled depressions and natural plains drain deterministically.
 - **Watersheds**: basin delineation from pour points (nested basins

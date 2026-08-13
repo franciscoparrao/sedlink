@@ -56,7 +56,7 @@ pub const DINF_PIT: f64 = -1.0;
 
 /// Validated DEM parts: (rows, cols, transform, cellsize, elevations,
 /// solid mask).
-type DemParts = (usize, usize, GeoTransform, f64, Vec<f32>, Vec<bool>);
+pub(crate) type DemParts = (usize, usize, GeoTransform, f64, Vec<f32>, Vec<bool>);
 
 /// The two D8 receivers of a D∞ angle with their flow fractions.
 ///
@@ -138,7 +138,7 @@ impl DinfNetwork {
     }
 
     /// Validate DEM and extract metadata, elevations, and solid mask.
-    fn validate_dem(dem: &Raster<f32>) -> Result<DemParts, SedlinkError> {
+    pub(crate) fn validate_dem(dem: &Raster<f32>) -> Result<DemParts, SedlinkError> {
         let (rows, cols) = dem.shape();
         if rows == 0 || cols == 0 {
             return Err(SedlinkError::EmptyGrid);

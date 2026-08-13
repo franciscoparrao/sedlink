@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Multiple flow direction routing (`MfdNetwork`, FD8): Freeman (1991)
+  fractions with the Holmgren (1994) exponent (default 1.1; converges
+  to D8 as p grows), CSR receiver storage for basin-scale DEMs, flat
+  cells drained through the flat resolver. Implements `FlowNetwork`, so
+  IC, sediment routing and the CLI (`--flow mfd` on `ic`, `acc`,
+  `route`) work over it directly.
+
 ## [0.4.0] - 2026-08-12
 
 ### Added

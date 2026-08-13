@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 use sedlink_core::{
     ChannelSetup, ConnectivityIndex, ConnectivityParams, DinfNetwork, FlowNetwork, IcSdrParams,
-    Network, NetworkAnalysis, RoutingParams, SedimentRouting,
+    MfdNetwork, Network, NetworkAnalysis, RoutingParams, SedimentRouting,
 };
 use surtgis_core::raster::Raster;
 
@@ -19,6 +19,8 @@ enum FlowModel {
     D8,
     /// D-infinity continuous flow direction (Tarboton 1997).
     Dinf,
+    /// Multiple flow direction FD8 (Freeman 1991 / Holmgren 1994).
+    Mfd,
 }
 
 /// Sediment delivery ratio model.
@@ -260,6 +262,11 @@ fn main() -> anyhow::Result<()> {
                     let ic = ConnectivityIndex::compute(&net, &dem_raster, &params)?;
                     ic.ic_raster(&net)
                 }
+                FlowModel::Mfd => {
+                    let net = MfdNetwork::from_dem(&dem_raster)?;
+                    let ic = ConnectivityIndex::compute(&net, &dem_raster, &params)?;
+                    ic.ic_raster(&net)
+                }
             };
             save_raster(&ic_raster, &output)?;
             eprintln!("IC raster ({flow:?}) saved to {}", output.display());
@@ -290,6 +297,7 @@ fn main() -> anyhow::Result<()> {
             let acc = match flow {
                 FlowModel::D8 => Network::from_dem(&dem_raster)?.flow_acc_raster()?,
                 FlowModel::Dinf => DinfNetwork::from_dem(&dem_raster)?.flow_acc_raster()?,
+                FlowModel::Mfd => MfdNetwork::from_dem(&dem_raster)?.flow_acc_raster()?,
             };
             save_raster(&acc, &output)?;
             eprintln!("Flow accumulation ({flow:?}) saved to {}", output.display());
@@ -477,6 +485,17 @@ fn main() -> anyhow::Result<()> {
             match flow {
                 FlowModel::D8 => {
                     let net = Network::from_dem(&dem_raster)?;
+                    run_route(
+                        &net,
+                        &dem_raster,
+                        &cfg,
+                        &output,
+                        flux.as_deref(),
+                        delivery.as_deref(),
+                    )?;
+                }
+                FlowModel::Mfd => {
+                    let net = MfdNetwork::from_dem(&dem_raster)?;
                     run_route(
                         &net,
                         &dem_raster,
