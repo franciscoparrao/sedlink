@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   walked the topological order downstream-first, so a cell was processed
   before its tributaries and junctions came out as order 1 / magnitude 1.
   Present since 0.1.0; no previous test exercised an order-2 junction.
+- `stream_magnitude` now implements Shreve's definition (sources are 1,
+  junctions sum their tributaries); it previously returned the upstream
+  stream-cell count.
 - `NetworkAnalysis` and `stream_links` no longer count NoData cells as
   stream cells when `stream_threshold <= 1` (D8 keeps `acc = 1.0` on
   solid cells).
