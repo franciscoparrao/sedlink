@@ -922,13 +922,15 @@ impl<'a> NetworkAnalysis<'a> {
                 continue;
             }
 
-            let mut sum = 1.0;
+            // Shreve magnitude: sources are 1; a junction is the SUM of
+            // its tributaries (no per-cell increment).
+            let mut sum = 0.0;
             for &up in self.net.upstream(idx) {
                 if is_stream[up] {
                     sum += mag[up];
                 }
             }
-            mag[idx] = sum;
+            mag[idx] = if sum == 0.0 { 1.0 } else { sum };
         }
 
         let max_magnitude = mag.iter().copied().fold(0.0f64, f64::max);

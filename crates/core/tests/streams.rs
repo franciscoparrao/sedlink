@@ -50,11 +50,9 @@ fn test_stream_links_y_network() {
     }
     assert_eq!(head_links, 2);
 
-    // Same-family regression: stream magnitude at the junction must sum
-    // its two order-1 tributaries (1 + 1 + 1 = 3) — this and the order-2
-    // check both fail if the topological walk runs downstream-first.
+    // Shreve magnitude: two sources joining → the junction is 2.
     let mag = sedlink_core::NetworkAnalysis::new(&net).stream_magnitude(1.0);
-    assert!((mag.values[4 * 5 + 2] - 3.0).abs() < 1e-9);
+    assert!((mag.values[4 * 5 + 2] - 2.0).abs() < 1e-9);
 }
 
 #[test]
