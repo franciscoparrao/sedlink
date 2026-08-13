@@ -66,6 +66,7 @@ mod par;
 mod params;
 mod routing;
 mod setup;
+mod streams;
 
 pub use connectivity::ConnectivityIndex;
 pub use dinf::{DINF_PIT, DinfNetwork};
@@ -77,3 +78,4 @@ pub use network::{Network, NetworkAnalysis, StrahlerOrder, StreamProfile};
 pub use params::{ConnectivityParams, IcSdrParams, RoutingParams, WeightingFactor};
 pub use routing::SedimentRouting;
 pub use setup::ChannelSetup;
+pub use streams::{StreamLink, stream_links, streams_geojson};

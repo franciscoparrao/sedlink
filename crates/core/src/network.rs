@@ -851,12 +851,18 @@ impl<'a> NetworkAnalysis<'a> {
         let mut order = vec![0u8; n];
 
         // Identify stream cells.
-        let is_stream: Vec<bool> = (0..n).map(|i| self.net.flow_acc[i] >= threshold).collect();
+        // Solid (NoData) cells keep acc = 1.0, so exclude them explicitly
+        // before thresholding.
+        let is_stream: Vec<bool> = (0..n)
+            .map(|i| !self.net.solid[i] && self.net.flow_acc[i] >= threshold)
+            .collect();
 
-        // Topological order (downstream first).
+        // topological_order() yields downstream cells first; Strahler
+        // needs each cell processed AFTER its upstream cells, so walk it
+        // in reverse.
         let topo = self.topological_order();
 
-        for &idx in &topo {
+        for &idx in topo.iter().rev() {
             if !is_stream[idx] {
                 continue;
             }
@@ -901,11 +907,17 @@ impl<'a> NetworkAnalysis<'a> {
         let n = self.net.len();
         let mut mag = vec![0.0f64; n];
 
-        let is_stream: Vec<bool> = (0..n).map(|i| self.net.flow_acc[i] >= threshold).collect();
+        // Solid (NoData) cells keep acc = 1.0, so exclude them explicitly
+        // before thresholding.
+        let is_stream: Vec<bool> = (0..n)
+            .map(|i| !self.net.solid[i] && self.net.flow_acc[i] >= threshold)
+            .collect();
 
+        // Reverse for the same reason as strahler_order: magnitudes of
+        // upstream cells must be final before their downstream cell.
         let topo = self.topological_order();
 
-        for &idx in &topo {
+        for &idx in topo.iter().rev() {
             if !is_stream[idx] {
                 continue;
             }

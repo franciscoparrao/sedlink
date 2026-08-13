@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Stream network vector export (`stream_links` / `streams_geojson` /
+  `sedlink streams`): junction-to-junction links with Strahler order,
+  length and accumulation attributes, as a GeoJSON FeatureCollection in
+  the DEM's CRS.
+
+### Fixed
+- **Strahler order and stream magnitude were wrong at junctions**: both
+  walked the topological order downstream-first, so a cell was processed
+  before its tributaries and junctions came out as order 1 / magnitude 1.
+  Present since 0.1.0; no previous test exercised an order-2 junction.
+- `NetworkAnalysis` and `stream_links` no longer count NoData cells as
+  stream cells when `stream_threshold <= 1` (D8 keeps `acc = 1.0` on
+  solid cells).
+
 ## [0.5.0] - 2026-08-13
 
 ### Added

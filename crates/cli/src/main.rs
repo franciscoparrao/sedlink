@@ -152,6 +152,18 @@ enum Commands {
         #[arg(long)]
         basin: Option<PathBuf>,
     },
+    /// Export the stream network as GeoJSON links (D8)
+    Streams {
+        /// Input DEM (GeoTIFF)
+        #[arg(short, long)]
+        dem: PathBuf,
+        /// Output GeoJSON (coordinates in the DEM's CRS)
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Stream threshold (cell count)
+        #[arg(short, long, default_value_t = 1000.0)]
+        threshold: f64,
+    },
     /// Delineate watersheds from pour points (D8)
     Watershed {
         /// Input DEM (GeoTIFF)
@@ -401,6 +413,21 @@ fn main() -> anyhow::Result<()> {
                 save_raster(&out, &path)?;
                 eprintln!("Basin mask saved to {}", path.display());
             }
+        }
+        Commands::Streams {
+            dem,
+            output,
+            threshold,
+        } => {
+            let dem_raster = load_dem(&dem)?;
+            let net = Network::from_dem(&dem_raster)?;
+            let links = sedlink_core::stream_links(&net, threshold);
+            std::fs::write(&output, sedlink_core::streams_geojson(&net, &links))?;
+            eprintln!(
+                "{} stream link(s) saved to {}",
+                links.len(),
+                output.display()
+            );
         }
         Commands::Watershed {
             dem,
