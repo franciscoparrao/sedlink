@@ -31,6 +31,10 @@ plugins SAGA/scripts dispersos. Une **terrain (SurtGIS)** con **hazards
 - [x] Trait `FlowNetwork` (D8 + D∞): `ConnectivityIndex::compute` es genérico
       y la CLI acepta `--flow d8|dinf` en `ic` y `acc`. Convención unificada:
       flow_acc incluye la propia celda (headwater = 1) en ambos routings.
+- [x] (v0.7, unreleased) IC hacia targets arbitrarios (Cavalli 2013 /
+      SedInConnect "targets"): `ConnectivityParams::targets` (máscara bool)
+      reemplaza la red de streams como destino de D_dn; celdas que no drenan
+      a un target → IC NaN. CLI: `sedlink ic --targets targets.tif`.
 - [x] (v0.2) Sediment routing con dos modelos de SDR (`SedimentRouting`):
       distancia-decay SDR = exp(−q·L/L_ref) (familia SEDD, `compute`) y
       sigmoide basado en IC SDR = sdr_max/(1+exp((IC0−IC)/k)) (Vigiak 2012 /

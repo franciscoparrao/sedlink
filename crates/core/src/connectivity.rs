@@ -24,6 +24,12 @@
 //! IC → +clamp. (`SedInConnect` masks stream cells as `NoData` instead; keep
 //! this in mind when comparing outputs.)
 //!
+//! When [`ConnectivityParams::targets`] is set, IC is computed relative to
+//! an arbitrary target mask instead (Cavalli et al. 2013 / `SedInConnect`
+//! "targets" version): `D_dn` is summed along the flow path to the nearest
+//! target cell, the threshold-based stream network is not used, and cells
+//! that never drain to a target get IC = NaN.
+//!
 //! D8 direction codes follow the `SurtGIS` convention: 1=E, 2=NE, 3=N, 4=NW,
 //! 5=W, 6=SW, 7=S, 8=SE (counter-clockwise from East).
 
@@ -46,7 +52,9 @@ pub struct ConnectivityIndex {
     pub d_up: Array2<f64>,
     /// `D_dn` component per cell.
     pub d_dn: Array2<f64>,
-    /// Stream mask: `true` for cells identified as channels.
+    /// Destination mask: `true` for cells where `D_dn` = 0. Threshold-based
+    /// stream cells by default, or the target mask when
+    /// [`ConnectivityParams::targets`] is set.
     pub is_stream: Array2<bool>,
 }
 
@@ -99,6 +107,18 @@ impl ConnectivityIndex {
             }
         }
 
+        if let Some(tg) = &params.targets {
+            let (tr, tc) = tg.dim();
+            if tr != rows || tc != cols {
+                return Err(SedlinkError::GridMismatch {
+                    expected_rows: rows,
+                    expected_cols: cols,
+                    got_rows: tr,
+                    got_cols: tc,
+                });
+            }
+        }
+
         let n = rows * cols;
         let cellsize = net.cellsize();
         let threshold = params.stream_threshold;
@@ -120,8 +140,12 @@ impl ConnectivityIndex {
             }
         }
 
-        // Stream mask.
-        let is_stream: Vec<bool> = (0..n).map(|i| flow_acc[i] >= threshold).collect();
+        // Destination mask: explicit targets if provided, else stream cells
+        // by flow accumulation threshold.
+        let is_stream: Vec<bool> = match &params.targets {
+            Some(tg) => (0..n).map(|i| tg[(i / cols, i % cols)]).collect(),
+            None => (0..n).map(|i| flow_acc[i] >= threshold).collect(),
+        };
 
         // Compute D_dn by tracing downstream paths with memoization.
         let d_dn = Self::compute_d_dn(net, &is_stream, &w_local, &s_local);

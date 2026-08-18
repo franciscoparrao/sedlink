@@ -89,6 +89,7 @@ fn test_parity_with_reference_implementation() {
             raster: Some(weight),
             min_value: 0.001,
         },
+        targets: None,
     };
     let ic = ConnectivityIndex::compute(&net, &dem, &params).unwrap();
 

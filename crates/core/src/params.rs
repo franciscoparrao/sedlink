@@ -32,8 +32,17 @@ impl Default for WeightingFactor {
 pub struct ConnectivityParams {
     /// Flow accumulation threshold (cell count) to delineate stream cells.
     /// Cells with flow accumulation ≥ this threshold are treated as channel
-    /// heads; `D_dn` = 0 at stream cells.
+    /// heads; `D_dn` = 0 at stream cells. Ignored when [`targets`] is set.
+    ///
+    /// [`targets`]: ConnectivityParams::targets
     pub stream_threshold: f64,
+    /// Optional target mask (`true` = target cell). When set, IC is computed
+    /// relative to these targets (Cavalli et al. 2013 / `SedInConnect`
+    /// "targets" version): `D_dn` is the impedance along the flow path to
+    /// the nearest target, the stream network is not used as a destination,
+    /// and cells that never drain to a target get IC = NaN. Typical targets:
+    /// reservoirs, road networks, check dams, catchment outlets.
+    pub targets: Option<ndarray::Array2<bool>>,
     /// Weighting factor (W). See [`WeightingFactor`].
     pub weight: WeightingFactor,
     /// Minimum slope gradient (tan θ, m/m) to avoid division by zero in
@@ -89,6 +98,7 @@ impl Default for ConnectivityParams {
     fn default() -> Self {
         Self {
             stream_threshold: 1000.0,
+            targets: None,
             weight: WeightingFactor::default(),
             min_slope: 0.005,
             clamp: 10.0,

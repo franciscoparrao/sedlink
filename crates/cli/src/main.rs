@@ -60,6 +60,11 @@ enum Commands {
         /// Optional weighting raster (GeoTIFF)
         #[arg(short, long)]
         weight: Option<PathBuf>,
+        /// Optional target raster (GeoTIFF): cells > 0 are targets.
+        /// Computes IC relative to the targets (reservoirs, roads, outlets)
+        /// instead of the threshold-based stream network.
+        #[arg(long)]
+        targets: Option<PathBuf>,
         /// Clamp IC to [-value, +value]
         #[arg(short, long, default_value_t = 10.0)]
         clamp: f64,
@@ -241,6 +246,7 @@ fn main() -> anyhow::Result<()> {
             output,
             threshold,
             weight,
+            targets,
             clamp,
             flow,
         } => {
@@ -253,8 +259,29 @@ fn main() -> anyhow::Result<()> {
                 None
             };
 
+            let target_arr = if let Some(tpath) = targets {
+                let t = load_raster_f64(&tpath)?;
+                if t.transform() != dem_raster.transform() {
+                    anyhow::bail!(
+                        "target and DEM rasters have different geotransforms; \
+                         they must be co-registered"
+                    );
+                }
+                let mask = t.data().mapv(|v| v.is_finite() && v > 0.0);
+                if !mask.iter().any(|&m| m) {
+                    anyhow::bail!(
+                        "target raster {} has no target cells (values > 0)",
+                        tpath.display()
+                    );
+                }
+                Some(mask)
+            } else {
+                None
+            };
+
             let params = ConnectivityParams {
                 stream_threshold: threshold,
+                targets: target_arr,
                 clamp,
                 weight: sedlink_core::WeightingFactor {
                     raster: weight_arr,

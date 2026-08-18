@@ -476,6 +476,105 @@ fn test_weight_raster_mismatch_rejected() {
 }
 
 #[test]
+fn test_ic_targets_basic() {
+    // Single target at (2, 2) on the uniform south slope. Only column 2
+    // above the target drains to it; everything else (other columns, and
+    // the cells downstream of the target) never reaches a target.
+    let dem = simple_slope_dem();
+    let net = Network::from_dem(&dem).unwrap();
+
+    let mut targets = Array2::<bool>::from_elem((5, 5), false);
+    targets[(2, 2)] = true;
+
+    let params = ConnectivityParams {
+        targets: Some(targets),
+        ..Default::default()
+    };
+    let ic = ConnectivityIndex::compute(&net, &dem, &params).unwrap();
+
+    // Target cell: D_dn = 0 → IC = +clamp.
+    assert_relative_eq!(ic.d_dn[(2, 2)], 0.0, epsilon = 1e-12);
+    assert_relative_eq!(ic.ic[(2, 2)], params.clamp, epsilon = 1e-12);
+    assert!(ic.is_stream[(2, 2)]);
+
+    // Upstream of the target (column 2): D_dn accumulates 5 m steps with
+    // W = 1 and S = 0.4 → 12.5 per cell.
+    assert_relative_eq!(ic.d_dn[(1, 2)], 12.5, epsilon = 1e-5);
+    assert_relative_eq!(ic.d_dn[(0, 2)], 25.0, epsilon = 1e-5);
+    assert!(ic.ic[(1, 2)].is_finite());
+    assert!(ic.ic[(0, 2)].is_finite());
+
+    // Downstream of the target and all other columns: unreachable → NaN.
+    assert!(ic.ic[(3, 2)].is_nan());
+    assert!(ic.ic[(4, 2)].is_nan());
+    for r in 0..5 {
+        for c in [0usize, 1, 3, 4] {
+            assert!(
+                ic.ic[(r, c)].is_nan(),
+                "cell ({r}, {c}) does not drain to the target"
+            );
+        }
+    }
+}
+
+#[test]
+fn test_ic_targets_equal_stream_mask_reproduces_classic_ic() {
+    // Passing the threshold-based stream mask as the target mask must
+    // reproduce the classic IC cell by cell, on both a parallel and a
+    // convergent flow pattern.
+    for dem in [simple_slope_dem(), funnel_dem()] {
+        let net = Network::from_dem(&dem).unwrap();
+
+        let classic = ConnectivityIndex::compute(
+            &net,
+            &dem,
+            &ConnectivityParams {
+                stream_threshold: 5.0,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let targeted = ConnectivityIndex::compute(
+            &net,
+            &dem,
+            &ConnectivityParams {
+                // Deliberately different threshold: it must be ignored.
+                stream_threshold: 9999.0,
+                targets: Some(classic.is_stream.clone()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        for r in 0..5 {
+            for c in 0..5 {
+                let a = classic.ic[(r, c)];
+                let b = targeted.ic[(r, c)];
+                assert!(
+                    (a.is_nan() && b.is_nan()) || (a - b).abs() < 1e-12,
+                    "IC mismatch at ({r}, {c}): classic={a}, targeted={b}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_ic_targets_shape_mismatch_rejected() {
+    let dem = simple_slope_dem();
+    let net = Network::from_dem(&dem).unwrap();
+
+    let params = ConnectivityParams {
+        targets: Some(Array2::<bool>::from_elem((3, 3), true)),
+        ..Default::default()
+    };
+
+    let result = ConnectivityIndex::compute(&net, &dem, &params);
+    assert!(matches!(result, Err(SedlinkError::GridMismatch { .. })));
+}
+
+#[test]
 fn test_invalid_params_rejected() {
     let dem = simple_slope_dem();
     let net = Network::from_dem(&dem).unwrap();

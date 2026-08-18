@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- IC relative to arbitrary targets (Cavalli et al. 2013 / SedInConnect
+  "targets" version): `ConnectivityParams::targets` takes a boolean mask
+  (reservoirs, roads, check dams, outlets) that replaces the
+  threshold-based stream network as the `D_dn` destination; cells that
+  never drain to a target get IC = NaN. CLI: `sedlink ic --targets
+  targets.tif` (cells > 0 are targets; must be co-registered with the
+  DEM). Passing the stream mask as targets reproduces the classic IC
+  cell by cell (covered by tests).
+
 ## [0.6.0] - 2026-08-13
 
 ### Added
