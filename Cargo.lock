@@ -628,7 +628,7 @@ dependencies = [
 
 [[package]]
 name = "sedlink-cli"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -641,7 +641,7 @@ dependencies = [
 
 [[package]]
 name = "sedlink-core"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "approx",
  "ndarray",
